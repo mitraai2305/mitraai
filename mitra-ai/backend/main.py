@@ -14,7 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+client = Groq(api_key=os.environ.get("GROQ_API_KEY", "placeholder"))
 conversations = {}
 
 SYSTEM_PROMPT = """You are Mitra, an AI life co-pilot built specifically for Indians.
