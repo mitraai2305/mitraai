@@ -58,7 +58,7 @@ def chat(req: ChatRequest):
     recent_history = history[-10:]
     try:
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama3-8b-8192",
             messages=[{"role": "system", "content": SYSTEM_PROMPT}, *recent_history],
             max_tokens=1024,
             temperature=0.7,
