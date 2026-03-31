@@ -1,64 +1,52 @@
+import os
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from groq import Groq
-import os
-from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
-app = FastAPI(title="Mitra AI Backend")
+# 1. Load your API key from the .env file 
+load_dotenv()
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
+app = FastAPI()
+
+# 2. Allow your frontend (GitHub Pages) to talk to this backend 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=["*"],  # In production, replace "*" with your GitHub Pages URL
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-conversations = {}
-
-SYSTEM_PROMPT = """You are Mitra, an AI life co-pilot built specifically for Indians. Reply in the same language the user writes in. Be warm and helpful."""
-
 class ChatRequest(BaseModel):
-    user_id: str
     message: str
-    language: Optional[str] = "auto"
 
-class ChatResponse(BaseModel):
-    reply: str
-    user_id: str
+# 3. Setting the "Bada Bhai" Personality
+SYSTEM_PROMPT = {
+    "role": "system",
+    "content": (
+        "You are Mitra AI, a supportive 'Bada Bhai' (Big Brother) and mentor for Indian students and founders. "
+        "Your tone is encouraging, witty, and relatable. Use simple English mixed with occasional Hinglish. "
+        "If a user makes a grammar mistake, gently guide them. If they talk about startups, inspire them. "
+        "Keep responses concise and helpful."
+    )
+}
 
-@app.get("/")
-def root():
-    return {"status": "Mitra AI is running", "version": "0.1.0"}
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-@app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest):
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY not set")
-    
-    client = Groq(api_key=api_key)
-    
-    if req.user_id not in conversations:
-        conversations[req.user_id] = []
-    history = conversations[req.user_id]
-    history.append({"role": "user", "content": req.message})
-    
+@app.post("/chat")
+async def chat(request: ChatRequest):
     try:
-        response = client.chat.completions.create(
+        # Calling Groq API (within free tier limits: 30 requests/min) 
+        completion = client.chat.completions.create(
             model="llama3-8b-8192",
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history[-6:],
-            max_tokens=512,
+            messages=[SYSTEM_PROMPT, {"role": "user", "content": request.message}],
             temperature=0.7,
+            max_tokens=500,
         )
-        reply = response.choices[0].message.content
-        history.append({"role": "assistant", "content": reply})
-        conversations[req.user_id] = history
-        return ChatResponse(reply=reply, user_id=req.user_id)
+        return {"response": completion.choices[0].message.content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
